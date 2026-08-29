@@ -1,7 +1,9 @@
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const QueryFeatures = require('../utils/queryFeatures');
+const sanitizeUpdate = require('../utils/sanitizeUpdate');
 
 const getUsers = asyncHandler(async (req, res) => {
   const features = new QueryFeatures(User.find(), req.query)
@@ -20,6 +22,10 @@ const getUsers = asyncHandler(async (req, res) => {
 });
 
 const getUserById = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid user id');
+  }
+
   const user = await User.findById(req.params.id);
 
   if (!user) {
@@ -30,7 +36,17 @@ const getUserById = asyncHandler(async (req, res) => {
 });
 
 const updateUser = asyncHandler(async (req, res) => {
-  const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid user id');
+  }
+
+  const allowedUpdates = sanitizeUpdate(req.body, ['name', 'email', 'role']);
+
+  if (Object.keys(allowedUpdates).length === 0) {
+    throw new ApiError(400, 'No valid fields provided for update');
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(req.params.id, allowedUpdates, {
     new: true,
     runValidators: true
   });
@@ -43,6 +59,10 @@ const updateUser = asyncHandler(async (req, res) => {
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid user id');
+  }
+
   const user = await User.findByIdAndDelete(req.params.id);
 
   if (!user) {

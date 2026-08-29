@@ -1,7 +1,9 @@
 const Post = require('../models/Post');
+const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/apiError');
 const QueryFeatures = require('../utils/queryFeatures');
+const sanitizeUpdate = require('../utils/sanitizeUpdate');
 
 const createPost = asyncHandler(async (req, res) => {
   const post = await Post.create({ ...req.body, author: req.user._id });
@@ -25,6 +27,10 @@ const getPosts = asyncHandler(async (req, res) => {
 });
 
 const getPostById = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid post id');
+  }
+
   const post = await Post.findById(req.params.id).populate('author', 'name email role');
 
   if (!post) {
@@ -35,6 +41,10 @@ const getPostById = asyncHandler(async (req, res) => {
 });
 
 const updatePost = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid post id');
+  }
+
   const post = await Post.findById(req.params.id);
 
   if (!post) {
@@ -45,7 +55,13 @@ const updatePost = asyncHandler(async (req, res) => {
     throw new ApiError(403, 'You can only update your own posts');
   }
 
-  const updatedPost = await Post.findByIdAndUpdate(req.params.id, req.body, {
+  const allowedUpdates = sanitizeUpdate(req.body, ['title', 'content', 'tags']);
+
+  if (Object.keys(allowedUpdates).length === 0) {
+    throw new ApiError(400, 'No valid fields provided for update');
+  }
+
+  const updatedPost = await Post.findByIdAndUpdate(req.params.id, allowedUpdates, {
     new: true,
     runValidators: true
   }).populate('author', 'name email role');
@@ -54,6 +70,10 @@ const updatePost = asyncHandler(async (req, res) => {
 });
 
 const deletePost = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new ApiError(400, 'Invalid post id');
+  }
+
   const post = await Post.findById(req.params.id);
 
   if (!post) {
